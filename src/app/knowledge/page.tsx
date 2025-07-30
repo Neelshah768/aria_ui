@@ -2,101 +2,45 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { formatDate } from '@/lib/utils';
-
-interface KnowledgeEntry {
-  id: number;
-  category: string;
-  question: string;
-  answer: string;
-  keywords: string[];
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+import { useDocumentAnalytics } from '@/hooks/api-hooks';
+import { formatFileSize, formatNumber } from '@/lib/utils';
+import DocumentUpload from '@/components/documents/DocumentUpload';
+import DocumentList from '@/components/documents/DocumentList';
+import DocumentSearch from '@/components/documents/DocumentSearch';
+import { Document, DocumentSearchResult } from '@/lib/types';
 
 export default function KnowledgeBasePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedEntry, setSelectedEntry] = useState<KnowledgeEntry | null>(null);
+  const [activeTab, setActiveTab] = useState<'upload' | 'documents' | 'search'>('upload');
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [clientId] = useState('default-client'); // In real app, get from auth context
 
-  // Mock data for knowledge base entries - in a real app this would come from an API
-  const knowledgeEntries: KnowledgeEntry[] = [
-    {
-      id: 1,
-      category: 'account',
-      question: 'How do I reset my password?',
-      answer: 'To reset your password: 1. Go to the login page 2. Click "Forgot Password" 3. Enter your email address 4. Check your email for reset instructions 5. Follow the link in the email to create a new password',
-      keywords: ['password', 'reset', 'forgot', 'login', 'account'],
-      is_active: true,
-      created_at: '2024-01-15T10:30:00Z',
-      updated_at: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: 2,
-      category: 'shipping',
-      question: 'How long does shipping take?',
-      answer: 'Shipping times vary by location: Standard shipping (5-7 business days), Express shipping (2-3 business days), Overnight shipping (1 business day). International orders may take 7-14 business days.',
-      keywords: ['shipping', 'delivery', 'time', 'how long'],
-      is_active: true,
-      created_at: '2024-01-14T14:20:00Z',
-      updated_at: '2024-01-16T09:15:00Z'
-    },
-    {
-      id: 3,
-      category: 'product',
-      question: 'What is your return policy?',
-      answer: 'Our return policy allows returns within 30 days of purchase. Items must be in original condition with tags attached. To initiate a return, contact customer service or visit our returns portal.',
-      keywords: ['return', 'refund', 'policy', 'exchange'],
-      is_active: true,
-      created_at: '2024-01-13T16:45:00Z',
-      updated_at: '2024-01-13T16:45:00Z'
-    },
-    {
-      id: 4,
-      category: 'billing',
-      question: 'How do I update my payment method?',
-      answer: 'To update your payment method: 1. Log into your account 2. Go to Account Settings 3. Select Payment Methods 4. Add a new card or update existing information 5. Save your changes',
-      keywords: ['payment', 'billing', 'card', 'update', 'method'],
-      is_active: true,
-      created_at: '2024-01-12T11:30:00Z',
-      updated_at: '2024-01-17T13:22:00Z'
-    },
-    {
-      id: 5,
-      category: 'technical',
-      question: 'The app is not working properly',
-      answer: 'If you\'re experiencing app issues: 1. Try closing and reopening the app 2. Check for app updates 3. Restart your device 4. Clear the app cache 5. If problems persist, contact technical support',
-      keywords: ['app', 'technical', 'bug', 'not working', 'issue'],
-      is_active: true,
-      created_at: '2024-01-11T08:15:00Z',
-      updated_at: '2024-01-11T08:15:00Z'
-    }
-  ];
-
-  const categories = ['all', 'account', 'shipping', 'product', 'billing', 'technical'];
-
-  // Filter entries based on search and category
-  const filteredEntries = knowledgeEntries.filter(entry => {
-    const matchesCategory = selectedCategory === 'all' || entry.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
-      entry.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      entry.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      entry.keywords.some(keyword => keyword.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return matchesCategory && matchesSearch && entry.is_active;
+  const { data: analytics, isLoading: analyticsLoading } = useDocumentAnalytics({
+    clientId,
+    days: 30
   });
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'account': return 'text-blue-400 bg-blue-500/20';
-      case 'shipping': return 'text-purple-400 bg-purple-500/20';
-      case 'product': return 'text-green-400 bg-green-500/20';
-      case 'billing': return 'text-yellow-400 bg-yellow-500/20';
-      case 'technical': return 'text-red-400 bg-red-500/20';
-      default: return 'text-gray-400 bg-gray-500/20';
-    }
+  const handleUploadComplete = (results: any) => {
+    console.log('Upload completed:', results);
+    setRefreshTrigger(prev => prev + 1);
+    // Switch to documents tab after upload
+    setActiveTab('documents');
   };
+
+  const handleDocumentSelect = (document: Document) => {
+    setSelectedDocument(document);
+  };
+
+  const handleSearchResultSelect = (result: DocumentSearchResult) => {
+    console.log('Search result selected:', result);
+    // Could navigate to document or show in modal
+  };
+
+  const tabs = [
+    { id: 'upload', label: '📤 Upload', description: 'Add new documents' },
+    { id: 'documents', label: '📚 Documents', description: 'Manage knowledge base' },
+    { id: 'search', label: '🔍 Search', description: 'Find information' }
+  ];
 
   return (
     <div className="p-6 space-y-6">
@@ -105,142 +49,190 @@ export default function KnowledgeBasePage() {
         <div>
           <h1 className="text-3xl font-bold text-white">Knowledge Base</h1>
           <p className="text-gray-400">
-            Manage AI knowledge base entries and responses
+            Upload and manage documents for AI-powered customer support
           </p>
         </div>
-        
-        <motion.button
-          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          ➕ Add Entry
-        </motion.button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-white">{knowledgeEntries.length}</div>
-          <div className="text-sm text-gray-400">Total Entries</div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-green-400">{knowledgeEntries.filter(e => e.is_active).length}</div>
-          <div className="text-sm text-gray-400">Active</div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-400">{categories.length - 1}</div>
-          <div className="text-sm text-gray-400">Categories</div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-yellow-400">94%</div>
-          <div className="text-sm text-gray-400">Coverage</div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex gap-2 flex-wrap">
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                selectedCategory === category
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              {category.charAt(0).toUpperCase() + category.slice(1)}
-            </button>
+      {/* Analytics Dashboard */}
+      {analyticsLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center animate-pulse">
+              <div className="h-8 bg-gray-600 rounded mb-2"></div>
+              <div className="h-4 bg-gray-700 rounded mb-1"></div>
+              <div className="h-3 bg-gray-700 rounded w-2/3 mx-auto"></div>
+            </div>
           ))}
         </div>
-        
-        <input
-          type="text"
-          placeholder="Search knowledge base..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-        />
+      ) : analytics ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center"
+          >
+            <div className="text-2xl font-bold text-white">
+              {formatNumber(analytics?.total_documents || 0)}
+            </div>
+            <div className="text-sm text-gray-400">Total Documents</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {analytics?.completed_documents || 0} processed
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center"
+          >
+            <div className="text-2xl font-bold text-green-400">
+              {Math.round(((analytics?.completed_documents || 0) / Math.max((analytics?.total_documents || 1), 1)) * 100)}%
+            </div>
+            <div className="text-sm text-gray-400">Processing Rate</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {analytics?.processing_documents || 0} in progress
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center"
+          >
+            <div className="text-2xl font-bold text-blue-400">
+              {formatFileSize(analytics?.total_file_size || 0)}
+            </div>
+            <div className="text-sm text-gray-400">Total Size</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {formatNumber(analytics?.total_words || 0)} words
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 text-center"
+          >
+            <div className="text-2xl font-bold text-yellow-400">
+              {analytics?.fileTypes?.length || 0}
+            </div>
+            <div className="text-sm text-gray-400">File Types</div>
+            <div className="text-xs text-gray-500 mt-1">
+              {analytics?.fileTypes?.map(ft => ft.file_type.toUpperCase()).join(', ').slice(0, 20) || 'None'}
+              {(analytics?.fileTypes?.length || 0) > 3 && '...'}
+            </div>
+          </motion.div>
+                 </div>
+       ) : null}
+
+       {/* Navigation Tabs */}
+      <div className="border-b border-gray-700">
+        <nav className="flex space-x-8">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-white hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <span>{tab.label}</span>
+              </div>
+              <div className="text-xs opacity-75 mt-1">
+                {tab.description}
+              </div>
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Knowledge Entries */}
-      <div className="space-y-4">
-        {filteredEntries.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">📚</div>
-            <h3 className="text-xl font-semibold text-white mb-2">No entries found</h3>
-            <p className="text-gray-400">
-              {knowledgeEntries.length === 0 
-                ? "No knowledge base entries available." 
-                : "Try adjusting your filters or search query."}
-            </p>
-          </div>
-        ) : (
-          filteredEntries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700 rounded-lg p-4 cursor-pointer transition-all"
-              onClick={() => setSelectedEntry(entry)}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              {/* Entry Header */}
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(entry.category)}`}>
-                    {entry.category.toUpperCase()}
-                  </span>
-                  <span className="text-xs text-gray-500">ID: #{entry.id}</span>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {formatDate(entry.updated_at)}
-                </span>
-              </div>
-
-              {/* Question */}
-              <h3 className="text-white font-medium mb-2 line-clamp-2">
-                {entry.question}
-              </h3>
-              
-              {/* Answer Preview */}
-              <p className="text-gray-400 text-sm mb-3 line-clamp-2">
-                {entry.answer}
+      {/* Tab Content */}
+      <div className="min-h-[600px]">
+        {activeTab === 'upload' && (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                🚀 Transform Your Customer Support
+              </h2>
+              <p className="text-gray-300 text-sm">
+                Upload your company documents, manuals, FAQs, and policies. Our AI will process them 
+                automatically and use them to provide accurate, contextual responses to customer emails.
               </p>
+            </div>
+            
+            <DocumentUpload
+              clientId={clientId}
+              onUploadComplete={handleUploadComplete}
+              multiple={true}
+              maxFiles={10}
+              maxFileSize={50 * 1024 * 1024}
+            />
+          </motion.div>
+        )}
 
-              {/* Keywords */}
-              <div className="flex flex-wrap gap-1 mb-3">
-                {entry.keywords.slice(0, 4).map((keyword, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-0.5 bg-gray-700 text-gray-300 rounded text-xs"
-                  >
-                    {keyword}
-                  </span>
-                ))}
-                {entry.keywords.length > 4 && (
-                  <span className="px-2 py-0.5 bg-gray-700 text-gray-400 rounded text-xs">
-                    +{entry.keywords.length - 4} more
-                  </span>
-                )}
-              </div>
-            </motion.div>
-          ))
+        {activeTab === 'documents' && (
+          <motion.div
+            key="documents"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+          >
+            <DocumentList
+              clientId={clientId}
+              onDocumentSelect={handleDocumentSelect}
+              refreshTrigger={refreshTrigger}
+            />
+          </motion.div>
+        )}
+
+        {activeTab === 'search' && (
+          <motion.div
+            key="search"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                🔍 Intelligent Knowledge Search
+              </h2>
+              <p className="text-gray-300 text-sm">
+                Search across all your uploaded documents using AI-powered semantic search. 
+                Find relevant information even when using different words or phrases.
+              </p>
+            </div>
+            
+            <DocumentSearch
+              clientId={clientId}
+              onResultSelect={handleSearchResultSelect}
+            />
+          </motion.div>
         )}
       </div>
 
-      {/* Entry Detail Modal */}
-      {selectedEntry && (
+      {/* Document Detail Modal */}
+      {selectedDocument && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
-              setSelectedEntry(null);
+              setSelectedDocument(null);
             }
           }}
         >
@@ -253,15 +245,25 @@ export default function KnowledgeBasePage() {
             <div className="flex justify-between items-center p-6 border-b border-gray-700">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(selectedEntry.category)}`}>
-                    {selectedEntry.category.toUpperCase()}
+                  <span className="text-2xl">
+                    {selectedDocument.file_type === 'pdf' ? '📄' : 
+                     selectedDocument.file_type === 'docx' ? '📝' : 
+                     selectedDocument.file_type === 'xlsx' ? '📊' : '📁'}
                   </span>
-                  <span className="text-sm text-gray-400">ID: #{selectedEntry.id}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    selectedDocument.processing_status === 'completed' ? 'text-green-400 bg-green-500/20' :
+                    selectedDocument.processing_status === 'processing' ? 'text-blue-400 bg-blue-500/20' :
+                    selectedDocument.processing_status === 'failed' ? 'text-red-400 bg-red-500/20' :
+                    'text-yellow-400 bg-yellow-500/20'
+                  }`}>
+                    {selectedDocument.processing_status.toUpperCase()}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold text-white">Knowledge Entry</h2>
+                <h2 className="text-xl font-bold text-white">{selectedDocument.title}</h2>
+                <p className="text-gray-400 text-sm">{selectedDocument.original_filename}</p>
               </div>
               <button
-                onClick={() => setSelectedEntry(null)}
+                onClick={() => setSelectedDocument(null)}
                 className="text-gray-400 hover:text-white text-2xl"
               >
                 ×
@@ -270,63 +272,73 @@ export default function KnowledgeBasePage() {
 
             {/* Modal Content */}
             <div className="p-6 space-y-4">
-              {/* Question */}
-              <div>
-                <label className="text-sm font-medium text-gray-400">Question</label>
-                <p className="text-white mt-1 text-lg">{selectedEntry.question}</p>
-              </div>
-
-              {/* Answer */}
-              <div>
-                <label className="text-sm font-medium text-gray-400">Answer</label>
-                <div className="bg-gray-800 rounded-lg p-4 mt-1">
-                  <p className="text-gray-300 whitespace-pre-wrap">
-                    {selectedEntry.answer}
-                  </p>
+              {selectedDocument.description && (
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Description</label>
+                  <p className="text-white mt-1">{selectedDocument.description}</p>
                 </div>
-              </div>
+              )}
 
-              {/* Keywords */}
-              <div>
-                <label className="text-sm font-medium text-gray-400">Keywords</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedEntry.keywords.map((keyword, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-sm"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-400">File Size</label>
+                  <p className="text-white">{formatFileSize(selectedDocument.file_size)}</p>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">File Type</label>
+                  <p className="text-white">{selectedDocument.file_type.toUpperCase()}</p>
+                </div>
+                {selectedDocument.total_pages && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-400">Pages</label>
+                    <p className="text-white">{selectedDocument.total_pages}</p>
+                  </div>
+                )}
+                {selectedDocument.total_words && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-400">Words</label>
+                    <p className="text-white">{selectedDocument.total_words.toLocaleString()}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Timestamps */}
+              {selectedDocument.tags && selectedDocument.tags.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Tags</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedDocument.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-sm"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-700">
                 <div>
-                  <label className="text-sm font-medium text-gray-400">Created</label>
-                  <p className="text-gray-300 text-sm">{formatDate(selectedEntry.created_at)}</p>
+                  <label className="text-sm font-medium text-gray-400">Uploaded</label>
+                  <p className="text-gray-300 text-sm">{new Date(selectedDocument.uploaded_at).toLocaleString()}</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Last Updated</label>
-                  <p className="text-gray-300 text-sm">{formatDate(selectedEntry.updated_at)}</p>
-                </div>
+                {selectedDocument.processed_at && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-400">Processed</label>
+                    <p className="text-gray-300 text-sm">{new Date(selectedDocument.processed_at).toLocaleString()}</p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Modal Actions */}
             <div className="flex justify-end gap-2 p-6 border-t border-gray-700">
               <button
-                onClick={() => setSelectedEntry(null)}
+                onClick={() => setSelectedDocument(null)}
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
               >
                 Close
-              </button>
-              <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
-                Edit Entry
-              </button>
-              <button className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors">
-                Delete
               </button>
             </div>
           </motion.div>

@@ -3,7 +3,7 @@
 
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import { ApiResponse, Ticket, Customer, EmailLog, DashboardStats, AnalyticsData } from './types'
+import { ApiResponse, Ticket, Customer, EmailLog, DashboardStats, AnalyticsData, Document, DocumentUploadResponse, DocumentSearchResponse, DocumentAnalytics, ProcessingJob } from './types'
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -341,6 +341,230 @@ export const knowledgeApi = {
       throw error
     }
   },
+}
+
+// ==========================================
+// DOCUMENT MANAGEMENT API
+// ==========================================
+
+export const documentsApi = {
+  // Upload single document
+  uploadDocument: async (
+    file: File, 
+    metadata?: {
+      title?: string
+      description?: string
+      tags?: string
+      clientId?: string
+      author?: string
+    }
+  ): Promise<DocumentUploadResponse> => {
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      
+      if (metadata?.title) formData.append('title', metadata.title)
+      if (metadata?.description) formData.append('description', metadata.description)
+      if (metadata?.tags) formData.append('tags', metadata.tags)
+      if (metadata?.clientId) formData.append('clientId', metadata.clientId)
+      if (metadata?.author) formData.append('author', metadata.author)
+
+      const response = await apiClient.post('/documents/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
+      toast.success(`Document "${file.name}" uploaded successfully!`)
+      return response.data.data
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Upload failed'
+      toast.error(`Upload failed: ${message}`)
+      throw error
+    }
+  },
+
+  // Upload multiple documents
+  uploadDocuments: async (
+    files: File[], 
+    metadata?: {
+      clientId?: string
+      author?: string
+    }
+  ): Promise<{
+    processed: number
+    failed: number
+    results: DocumentUploadResponse[]
+    errors: Array<{ filename: string; error: string }>
+  }> => {
+    try {
+      const formData = new FormData()
+      files.forEach(file => formData.append('documents', file))
+      
+      if (metadata?.clientId) formData.append('clientId', metadata.clientId)
+      if (metadata?.author) formData.append('author', metadata.author)
+
+      const response = await apiClient.post('/documents/upload/bulk', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      
+      const { processed, failed } = response.data.data
+      toast.success(`Uploaded ${processed} documents successfully${failed > 0 ? `, ${failed} failed` : ''}`)
+      return response.data.data
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Bulk upload failed'
+      toast.error(`Bulk upload failed: ${message}`)
+      throw error
+    }
+  },
+
+  // Get all documents with filtering and pagination
+  getDocuments: async (params?: {
+    page?: number
+    limit?: number
+    status?: string
+    fileType?: string
+    clientId?: string
+    search?: string
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
+  }): Promise<{
+    documents: Document[]
+    pagination: {
+      page: number
+      limit: number
+      total: number
+      pages: number
+    }
+  }> => {
+    try {
+      const response = await apiClient.get('/documents', { params })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch documents:', error)
+      throw error
+    }
+  },
+
+  // Get document by ID
+  getDocument: async (id: string, includeChunks: boolean = false): Promise<{
+    document: Document
+    chunks?: any[]
+    totalChunks?: number
+  }> => {
+    try {
+      const response = await apiClient.get(`/documents/${id}`, {
+        params: { includeChunks }
+      })
+      return response.data.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Update document metadata
+  updateDocument: async (id: string, updates: {
+    title?: string
+    description?: string
+    tags?: string[]
+    author?: string
+  }): Promise<Document> => {
+    try {
+      const response = await apiClient.put(`/documents/${id}`, updates)
+      toast.success('Document updated successfully!')
+      return response.data.data.document
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Delete document
+  deleteDocument: async (id: string): Promise<void> => {
+    try {
+      await apiClient.delete(`/documents/${id}`)
+      toast.success('Document deleted successfully!')
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Get processing status
+  getProcessingStatus: async (id: string): Promise<{
+    document: {
+      id: string
+      filename: string
+      status: string
+      progress: number
+      error?: string
+      uploadedAt: string
+      processedAt?: string
+      lastUpdated: string
+    }
+    jobs: ProcessingJob[]
+  }> => {
+    try {
+      const response = await apiClient.get(`/documents/${id}/status`)
+      return response.data.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Retry failed processing
+  retryProcessing: async (id: string): Promise<void> => {
+    try {
+      await apiClient.post(`/documents/${id}/retry`)
+      toast.success('Processing retry queued successfully!')
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Search documents and knowledge base
+  searchDocuments: async (query: string, options?: {
+    limit?: number
+    threshold?: number
+    searchType?: 'vector' | 'keyword' | 'hybrid'
+    clientId?: string
+  }): Promise<DocumentSearchResponse> => {
+    try {
+      const response = await apiClient.post('/documents/search', {
+        query,
+        ...options
+      })
+      return response.data.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Get document analytics
+  getDocumentAnalytics: async (params?: {
+    clientId?: string
+    days?: number
+  }): Promise<DocumentAnalytics> => {
+    try {
+      const response = await apiClient.get('/documents/analytics/stats', { params })
+      return response.data.data
+    } catch (error) {
+      console.error('Failed to fetch document analytics:', error)
+      // Return fallback data
+      return {
+        total_documents: 0,
+        completed_documents: 0,
+        processing_documents: 0,
+        failed_documents: 0,
+        pending_documents: 0,
+        total_file_size: 0,
+        total_words: 0,
+        avg_words_per_doc: 0,
+        fileTypes: [],
+        uploadTrends: []
+      }
+    }
+  }
 }
 
 // ==========================================

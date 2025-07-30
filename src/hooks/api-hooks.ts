@@ -11,7 +11,8 @@ import {
   emailsApi, 
   aiApi, 
   knowledgeApi, 
-  systemApi 
+  systemApi,
+  documentsApi
 } from '@/lib/api'
 
 // ==========================================
@@ -196,6 +197,157 @@ export const useAddKnowledge = () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge'] })
       queryClient.invalidateQueries({ queryKey: ['ai', 'insights'] })
     },
+  })
+}
+
+// ==========================================
+// DOCUMENT MANAGEMENT HOOKS
+// ==========================================
+
+export const useDocuments = (params?: {
+  page?: number
+  limit?: number
+  status?: string
+  fileType?: string
+  clientId?: string
+  search?: string
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}) => {
+  return useQuery({
+    queryKey: ['documents', params],
+    queryFn: () => documentsApi.getDocuments(params),
+    staleTime: 30000, // 30 seconds
+  })
+}
+
+export const useDocument = (id: string, includeChunks: boolean = false) => {
+  return useQuery({
+    queryKey: ['documents', id, includeChunks],
+    queryFn: () => documentsApi.getDocument(id, includeChunks),
+    enabled: !!id,
+  })
+}
+
+export const useDocumentProcessingStatus = (id: string, enabled: boolean = true) => {
+  return useQuery({
+    queryKey: ['documents', id, 'status'],
+    queryFn: () => documentsApi.getProcessingStatus(id),
+    enabled: !!id && enabled,
+    refetchInterval: (data) => {
+      // Stop polling when processing is complete
+      const status = data?.document?.status
+      return status === 'processing' || status === 'pending' ? 2000 : false
+    },
+  })
+}
+
+export const useDocumentAnalytics = (params?: {
+  clientId?: string
+  days?: number
+}) => {
+  return useQuery({
+    queryKey: ['documents', 'analytics', params],
+    queryFn: () => documentsApi.getDocumentAnalytics(params),
+    staleTime: 300000, // 5 minutes
+    refetchInterval: 60000, // Refetch every minute
+  })
+}
+
+export const useUploadDocument = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ file, metadata }: { 
+      file: File
+      metadata?: {
+        title?: string
+        description?: string
+        tags?: string
+        clientId?: string
+        author?: string
+      }
+    }) => documentsApi.uploadDocument(file, metadata),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', 'analytics'] })
+    },
+  })
+}
+
+export const useUploadDocuments = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ files, metadata }: { 
+      files: File[]
+      metadata?: {
+        clientId?: string
+        author?: string
+      }
+    }) => documentsApi.uploadDocuments(files, metadata),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', 'analytics'] })
+    },
+  })
+}
+
+export const useUpdateDocument = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, updates }: { 
+      id: string
+      updates: {
+        title?: string
+        description?: string
+        tags?: string[]
+        author?: string
+      }
+    }) => documentsApi.updateDocument(id, updates),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', variables.id] })
+    },
+  })
+}
+
+export const useDeleteDocument = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: documentsApi.deleteDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['documents', 'analytics'] })
+    },
+  })
+}
+
+export const useRetryProcessing = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: documentsApi.retryProcessing,
+    onSuccess: (_, documentId) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', documentId, 'status'] })
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}
+
+export const useSearchDocuments = () => {
+  return useMutation({
+    mutationFn: ({ query, options }: { 
+      query: string
+      options?: {
+        limit?: number
+        threshold?: number
+        searchType?: 'vector' | 'keyword' | 'hybrid'
+        clientId?: string
+      }
+    }) => documentsApi.searchDocuments(query, options),
   })
 }
 

@@ -39,7 +39,12 @@ export function formatRelativeTime(date: Date | string): string {
 /**
  * Format numbers for display (e.g., 1000 -> 1K)
  */
-export function formatNumber(num: number): string {
+export function formatNumber(num: number | undefined | null): string {
+  // Handle null/undefined values
+  if (num === null || num === undefined || isNaN(num)) {
+    return '0'
+  }
+  
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M'
   }
@@ -227,4 +232,20 @@ export function formatDuration(ms: number): string {
   if (hours > 0) return `${hours}h ${minutes % 60}m`
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`
   return `${seconds}s`
+}
+
+/**
+ * Format file size in bytes to human readable
+ */
+export function formatFileSize(bytes: number | undefined | null): string {
+  // Handle null/undefined values
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes === 0) {
+    return '0 Bytes'
+  }
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 } 

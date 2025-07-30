@@ -66,6 +66,116 @@ export interface KnowledgeBase {
   updated_at: string
 }
 
+// Document Management Types
+export interface Document {
+  id: string
+  filename: string
+  original_filename: string
+  title: string
+  description?: string
+  file_type: string
+  file_size: number
+  mime_type: string
+  upload_path: string
+  client_id?: string
+  author?: string
+  tags: string[]
+  language: string
+  
+  // Processing status
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed'
+  processing_progress: number
+  processing_error?: string
+  
+  // Content stats
+  total_pages?: number
+  total_words?: number
+  total_characters?: number
+  
+  // Timestamps
+  uploaded_at: string
+  processed_at?: string
+  updated_at: string
+}
+
+export interface DocumentChunk {
+  id: string
+  document_id: string
+  content: string
+  chunk_index: number
+  page_number?: number
+  section_title?: string
+  section_type?: string
+  word_count: number
+  character_count: number
+  created_at: string
+}
+
+export interface ProcessingJob {
+  id: string
+  document_id: string
+  job_type: string
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  priority: number
+  progress: number
+  current_step?: string
+  total_steps?: number
+  error_message?: string
+  created_at: string
+  started_at?: string
+  completed_at?: string
+}
+
+export interface DocumentUploadResponse {
+  success: boolean
+  documentId: string
+  filename: string
+  status: string
+  message: string
+}
+
+export interface DocumentSearchResult {
+  id: string
+  content: string
+  title: string
+  source: string
+  result_type: 'document_chunk' | 'knowledge_entry'
+  relevanceScore: number
+  document_title?: string
+  original_filename?: string
+  page_number?: number
+}
+
+export interface DocumentSearchResponse {
+  success: boolean
+  results: DocumentSearchResult[]
+  metadata: {
+    searchType: string
+    totalResults: number
+    searchDurationMs: number
+    threshold: number
+  }
+}
+
+export interface DocumentAnalytics {
+  total_documents: number
+  completed_documents: number
+  processing_documents: number
+  failed_documents: number
+  pending_documents: number
+  total_file_size: number
+  total_words: number
+  avg_words_per_doc: number
+  fileTypes: Array<{
+    file_type: string
+    count: number
+  }>
+  uploadTrends: Array<{
+    date: string
+    uploads: number
+  }>
+}
+
 export interface DashboardStats {
   total_tickets: number
   open_tickets: number
